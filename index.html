@@ -128,6 +128,51 @@
   .url-row input:focus { border-color: var(--accent); }
   .url-row input::placeholder { color: var(--muted); }
 
+  /* File tabs */
+  .file-tabs {
+    display: flex;
+    gap: 0;
+    padding: 12px 20px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+  .file-tab {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 7px 16px;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    color: var(--muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    position: relative;
+    bottom: -1px;
+  }
+  .file-tab:hover { color: var(--text); }
+  .file-tab.active {
+    color: var(--accent);
+    background: var(--panel);
+    border-color: var(--border);
+    border-bottom-color: var(--panel);
+  }
+  .file-tab .tab-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.15s;
+  }
+  .file-tab.active .tab-dot { background: var(--accent); }
+  .file-tab.has-content .tab-dot { background: var(--warn); }
+  .file-tab.active.has-content .tab-dot { background: var(--accent); }
+
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
   textarea {
     width: 100%;
     background: transparent;
@@ -136,9 +181,9 @@
     font-family: 'Space Mono', monospace;
     font-size: 12px;
     line-height: 1.7;
-    padding: 16px 20px;
+    padding: 14px 20px;
     resize: vertical;
-    min-height: 220px;
+    min-height: 180px;
     outline: none;
   }
   textarea::placeholder { color: var(--muted); }
@@ -148,7 +193,11 @@
     font-size: 11px;
     color: var(--muted);
     font-family: 'Space Mono', monospace;
+    display: flex;
+    gap: 16px;
   }
+  .char-count span { display: flex; align-items: center; gap: 4px; }
+  .count-dot { width: 5px; height: 5px; border-radius: 50%; }
 
   /* Issue type selector */
   .issue-types {
@@ -438,10 +487,34 @@
       <input type="text" id="siteUrl" placeholder="Client website URL (optional — e.g. https://example.com)" />
     </div>
 
-    <textarea id="codeInput" placeholder="Paste the full HTML/CSS/JS code of the client's website here...
+    <!-- File tabs -->
+    <div class="file-tabs">
+      <div class="file-tab active" data-tab="html" onclick="switchTab('html')">
+        <span class="tab-dot"></span> index.html
+      </div>
+      <div class="file-tab" data-tab="css" onclick="switchTab('css')">
+        <span class="tab-dot"></span> styles.css
+      </div>
+      <div class="file-tab" data-tab="js" onclick="switchTab('js')">
+        <span class="tab-dot"></span> script.js
+      </div>
+    </div>
 
-You can paste the entire source code. The more complete it is, the better the diagnosis."></textarea>
-    <div class="char-count" id="charCount">0 characters</div>
+    <div class="tab-pane active" id="pane-html">
+      <textarea id="htmlInput" placeholder="Paste the index.html code here..."></textarea>
+    </div>
+    <div class="tab-pane" id="pane-css">
+      <textarea id="cssInput" placeholder="Paste the styles.css code here..."></textarea>
+    </div>
+    <div class="tab-pane" id="pane-js">
+      <textarea id="jsInput" placeholder="Paste the script.js code here... (optional if the site has no JS file)"></textarea>
+    </div>
+
+    <div class="char-count" id="charCount">
+      <span><span class="count-dot" style="background:#4d9fff"></span> HTML: <b id="htmlCount">0</b></span>
+      <span><span class="count-dot" style="background:#ff4d6d"></span> CSS: <b id="cssCount">0</b></span>
+      <span><span class="count-dot" style="background:#ffb347"></span> JS: <b id="jsCount">0</b></span>
+    </div>
 
     <div style="padding: 0 20px 6px; font-size: 12px; color: var(--muted);">Focus areas (optional — select all that apply):</div>
     <div class="issue-types" id="chips">
@@ -466,17 +539,34 @@ You can paste the entire source code. The more complete it is, the better the di
 </div>
 
 <script>
-const codeInput = document.getElementById('codeInput');
-const charCount = document.getElementById('charCount');
 const runBtn = document.getElementById('runBtn');
 const loadBar = document.getElementById('loadBar');
 const loadMsg = document.getElementById('loadMsg');
 const resultsDiv = document.getElementById('results');
 
-// Char counter
-codeInput.addEventListener('input', () => {
-  charCount.textContent = codeInput.value.length.toLocaleString() + ' characters';
-});
+// Tab switching
+function switchTab(name) {
+  document.querySelectorAll('.file-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.file-tab[data-tab="${name}"]`).classList.add('active');
+  document.getElementById(`pane-${name}`).classList.add('active');
+}
+
+// Char counters + dot indicators
+function updateCounts() {
+  const html = document.getElementById('htmlInput').value;
+  const css  = document.getElementById('cssInput').value;
+  const js   = document.getElementById('jsInput').value;
+  document.getElementById('htmlCount').textContent = html.length.toLocaleString();
+  document.getElementById('cssCount').textContent  = css.length.toLocaleString();
+  document.getElementById('jsCount').textContent   = js.length.toLocaleString();
+  document.querySelector('[data-tab="html"]').classList.toggle('has-content', html.trim().length > 0);
+  document.querySelector('[data-tab="css"]').classList.toggle('has-content',  css.trim().length > 0);
+  document.querySelector('[data-tab="js"]').classList.toggle('has-content',   js.trim().length > 0);
+}
+document.getElementById('htmlInput').addEventListener('input', updateCounts);
+document.getElementById('cssInput').addEventListener('input', updateCounts);
+document.getElementById('jsInput').addEventListener('input', updateCounts);
 
 // Chips
 document.querySelectorAll('.chip').forEach(chip => {
@@ -498,14 +588,27 @@ function getActiveChips() {
 }
 
 async function runAnalysis() {
-  const code = codeInput.value.trim();
+  const htmlCode = document.getElementById('htmlInput').value.trim();
+  const cssCode  = document.getElementById('cssInput').value.trim();
+  const jsCode   = document.getElementById('jsInput').value.trim();
   const url = document.getElementById('siteUrl').value.trim();
   const focus = getActiveChips();
 
-  if (!code) {
-    alert('Please paste the website code first.');
+  if (!htmlCode && !cssCode && !jsCode) {
+    alert('Please paste at least the HTML code into the index.html tab first.');
     return;
   }
+
+  const code = [
+    htmlCode ? `=== index.html ===
+${htmlCode}` : '',
+    cssCode  ? `=== styles.css ===
+${cssCode}`  : '',
+    jsCode   ? `=== script.js ===
+${jsCode}`    : ''
+  ].filter(Boolean).join('
+
+');
 
   runBtn.disabled = true;
   loadBar.classList.add('active');
