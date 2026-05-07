@@ -120,6 +120,31 @@
   .issue-card.open .issue-body { display: block; }
   .issue-desc  { font-size: 13px; line-height: 1.7; color: #aab4c8; margin: 14px 0 16px; }
   .fix-label   { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 1px; margin-bottom: 8px; }
+  .action-badge {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 5px;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+  .action-ADD     { background: rgba(0,229,160,0.12); color: var(--accent); border: 1px solid rgba(0,229,160,0.3); }
+  .action-REPLACE { background: rgba(77,159,255,0.12); color: var(--info);   border: 1px solid rgba(77,159,255,0.3); }
+  .action-DELETE  { background: rgba(255,77,109,0.12); color: var(--accent2); border: 1px solid rgba(255,77,109,0.3); }
+  .action-detail {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--info);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #c8d8f0;
+    line-height: 1.7;
+    margin-bottom: 10px;
+  }
+  .fix-summary { font-size: 12px; color: var(--muted); margin-top: 10px; font-style: italic; }
   .where-label { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--warn);   letter-spacing: 1px; margin: 14px 0 6px; }
   .where-text  { font-size: 12px; color: #aab4c8; line-height: 1.6; }
   .line-num-box {
@@ -328,7 +353,7 @@ async function runAnalysis() {
     loadMsg.textContent = msgs[msgIdx];
   }, 1800);
 
-  var systemPrompt = 'You are an expert web developer and site auditor. Analyze the website code and return ONLY a valid JSON object. No markdown, no backticks, no text outside the JSON.\n\nIMPORTANT: The code is submitted with file labels like === index.html === so you know which file each line belongs to. Count line numbers carefully within each file starting from line 1.\n\nJSON structure:\n{\n  "score": <0-100>,\n  "summary": "<2-3 sentence overview>",\n  "issues": [\n    {\n      "id": 1,\n      "severity": "critical",\n      "category": "<Mobile|SEO|Performance|Accessibility|Forms|Design|Security>",\n      "title": "<short title>",\n      "description": "<2-4 sentences plain English for a non-coder>",\n      "where": "<plain English location e.g. In index.html inside the head tag>",\n      "line_number": "<exact line number(s) where the fix goes, e.g. Line 14 in index.html or Lines 45-48 in styles.css>",\n      "fix_code": "<actual working code fix>",\n      "fix_explanation": "<1-2 sentences: state clearly whether to REPLACE existing code or ADD new code, and exactly where>"\n    }\n  ]\n}\nseverity options: critical, warning, info, good\nReturn 4-12 issues. Score 0-40=critical, 41-65=needs work, 66-85=decent, 86-100=excellent.';
+  var systemPrompt = 'You are an expert web developer and site auditor. Analyze the website code and return ONLY a valid JSON object. No markdown, no backticks, no text outside the JSON.\n\nIMPORTANT: The code is submitted with file labels like === index.html === so you know which file each line belongs to. Count line numbers carefully within each file starting from line 1.\n\nJSON structure:\n{\n  "score": <0-100>,\n  "summary": "<2-3 sentence overview>",\n  "issues": [\n    {\n      "id": 1,\n      "severity": "critical",\n      "category": "<Mobile|SEO|Performance|Accessibility|Forms|Design|Security>",\n      "title": "<short title>",\n      "description": "<2-4 sentences plain English for a non-coder>",\n      "where": "<plain English location e.g. In index.html inside the head tag>",\n      "line_number": "<exact line number(s) where the fix goes, e.g. Line 14 in index.html or Lines 45-48 in styles.css>",\n      "fix_code": "<actual working code fix>",\n      "action": "ADD" | "REPLACE" | "DELETE",\n      "action_detail": "<Step by step plain English instructions: e.g. Go to line 14 in index.html. Find the opening head tag. ADD the following code directly after it. — or — Find the nav element on line 32. REPLACE the entire nav block with the code below.>",\n      "fix_code": "<ONLY the raw code to copy and paste. No comments, no instructions, just the code.>",\n      "fix_explanation": "<1 sentence summary of what this fix does>"\n    }\n  ]\n}\nseverity options: critical, warning, info, good\nReturn 4-12 issues. Score 0-40=critical, 41-65=needs work, 66-85=decent, 86-100=excellent. fix_code must contain ONLY pure code — zero instructions or comments inside it.';
 
   var userMsg = 'Audit this website.' + (siteUrl ? ' URL: ' + siteUrl + '.' : '') + ' Focus: ' + focus + '\n\nCODE:\n' + combinedCode;
 
@@ -433,10 +458,17 @@ function renderResults(data) {
     }
     var fix = '';
     if (issue.fix_code) {
-      fix = '<div class="fix-label">▸ RECOMMENDED FIX</div>'
-        + '<div class="code-block"><button class="copy-btn" onclick="copyCode(this,' + idx + ')">COPY</button>'
-        + '<pre id="code-' + idx + '">' + esc(issue.fix_code) + '</pre></div>'
-        + '<div style="font-size:12px;color:#aab4c8;line-height:1.6">' + esc(issue.fix_explanation||'') + '</div>';
+      var action = issue.action || 'UPDATE';
+      var actionClass = 'action-' + action;
+      fix = '<div class="fix-label">▸ INSTRUCTIONS</div>'
+        + '<span class="action-badge ' + actionClass + '">⚡ ' + action + '</span>'
+        + (issue.action_detail ? '<div class="action-detail">' + esc(issue.action_detail) + '</div>' : '')
+        + '<div class="fix-label" style="margin-top:8px">▸ CODE TO COPY</div>'
+        + '<div class="code-block">'
+        + '<button class="copy-btn" onclick="copyCode(this,' + idx + ')">COPY</button>'
+        + '<pre id="code-' + idx + '">' + esc(issue.fix_code) + '</pre>'
+        + '</div>'
+        + (issue.fix_explanation ? '<div class="fix-summary">✓ ' + esc(issue.fix_explanation) + '</div>' : '');
     }
     html += '<div class="issue-card" style="animation-delay:' + (idx*0.06) + 's">'
       + '<div class="issue-header" onclick="toggleCard(this)">'
