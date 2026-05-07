@@ -111,7 +111,7 @@
   .url-row {
     display: flex;
     gap: 10px;
-    padding: 16px 20px 0;
+    padding: 16px 20px 14px;
   }
   .url-row input {
     flex: 1;
@@ -128,50 +128,52 @@
   .url-row input:focus { border-color: var(--accent); }
   .url-row input::placeholder { color: var(--muted); }
 
-  /* File tabs */
+  /* CSS-only tabs using radio buttons */
+  .tab-radio { display: none; }
+
   .file-tabs {
     display: flex;
-    gap: 0;
-    padding: 12px 20px 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 0;
+    gap: 8px;
+    padding: 16px 20px 12px;
   }
-  .file-tab {
+
+  .file-tab-label {
     font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    padding: 7px 16px;
-    border-radius: 6px 6px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    height: 48px;
+    padding: 0 20px;
+    border-radius: 10px;
     cursor: pointer;
     color: var(--muted);
-    border: 1px solid transparent;
-    border-bottom: none;
-    transition: all 0.15s;
+    border: 2px solid var(--border);
+    background: var(--card);
+    flex: 1;
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: rgba(0,229,160,0.2);
+    touch-action: manipulation;
     user-select: none;
-    position: relative;
-    bottom: -1px;
   }
-  .file-tab:hover { color: var(--text); }
-  .file-tab.active {
-    color: var(--accent);
-    background: var(--panel);
-    border-color: var(--border);
-    border-bottom-color: var(--panel);
-  }
-  .file-tab .tab-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--muted);
-    transition: background 0.15s;
-  }
-  .file-tab.active .tab-dot { background: var(--accent); }
-  .file-tab.has-content .tab-dot { background: var(--warn); }
-  .file-tab.active.has-content .tab-dot { background: var(--accent); }
+  .file-tab-label:hover { border-color: var(--accent); color: var(--text); }
 
+  /* When radio is checked, style its label as active */
+  #tab-html:checked ~ .wrap .label-html,
+  #tab-css:checked  ~ .wrap .label-css,
+  #tab-js:checked   ~ .wrap .label-js {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+
+  /* Show/hide panes based on checked radio */
   .tab-pane { display: none; }
-  .tab-pane.active { display: block; }
+  #tab-html:checked ~ .wrap #pane-html { display: block; }
+  #tab-css:checked  ~ .wrap #pane-css  { display: block; }
+  #tab-js:checked   ~ .wrap #pane-js   { display: block; }
 
   textarea {
     width: 100%;
@@ -465,6 +467,11 @@
 </style>
 </head>
 <body>
+<!-- Radio inputs control tab state - no JS needed -->
+<input type="radio" class="tab-radio" id="tab-html" name="filetab" checked>
+<input type="radio" class="tab-radio" id="tab-css"  name="filetab">
+<input type="radio" class="tab-radio" id="tab-js"   name="filetab">
+
 <div class="wrap">
 
   <header>
@@ -487,27 +494,21 @@
       <input type="text" id="siteUrl" placeholder="Client website URL (optional — e.g. https://example.com)" />
     </div>
 
-    <!-- File tabs -->
+    <!-- CSS-only tabs -->
     <div class="file-tabs">
-      <div class="file-tab active" data-tab="html" onclick="switchTab('html')">
-        <span class="tab-dot"></span> index.html
-      </div>
-      <div class="file-tab" data-tab="css" onclick="switchTab('css')">
-        <span class="tab-dot"></span> styles.css
-      </div>
-      <div class="file-tab" data-tab="js" onclick="switchTab('js')">
-        <span class="tab-dot"></span> script.js
-      </div>
+      <label class="file-tab-label label-html" for="tab-html">📄 HTML</label>
+      <label class="file-tab-label label-css"  for="tab-css">🎨 CSS</label>
+      <label class="file-tab-label label-js"   for="tab-js">⚙️ JS</label>
     </div>
 
-    <div class="tab-pane active" id="pane-html">
+    <div class="tab-pane" id="pane-html">
       <textarea id="htmlInput" placeholder="Paste the index.html code here..."></textarea>
     </div>
     <div class="tab-pane" id="pane-css">
       <textarea id="cssInput" placeholder="Paste the styles.css code here..."></textarea>
     </div>
     <div class="tab-pane" id="pane-js">
-      <textarea id="jsInput" placeholder="Paste the script.js code here... (optional if the site has no JS file)"></textarea>
+      <textarea id="jsInput" placeholder="Paste the script.js code here... (optional)"></textarea>
     </div>
 
     <div class="char-count" id="charCount">
@@ -528,7 +529,7 @@
       <div class="chip" data-val="forms">Contact Forms</div>
     </div>
 
-    <button class="run-btn" id="runBtn" onclick="runAnalysis()">⚡ ANALYZE SITE CODE</button>
+    <button class="run-btn" id="runBtn" type="button">⚡ ANALYZE SITE CODE</button>
     <div class="loading-bar" id="loadBar"></div>
     <div class="loading-msg" id="loadMsg">🔍 Scanning code for issues...</div>
   </div>
@@ -544,13 +545,7 @@ const loadBar = document.getElementById('loadBar');
 const loadMsg = document.getElementById('loadMsg');
 const resultsDiv = document.getElementById('results');
 
-// Tab switching
-function switchTab(name) {
-  document.querySelectorAll('.file-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  document.querySelector(`.file-tab[data-tab="${name}"]`).classList.add('active');
-  document.getElementById(`pane-${name}`).classList.add('active');
-}
+// Tabs handled by pure CSS radio inputs - no JS needed
 
 // Char counters + dot indicators
 function updateCounts() {
@@ -560,13 +555,15 @@ function updateCounts() {
   document.getElementById('htmlCount').textContent = html.length.toLocaleString();
   document.getElementById('cssCount').textContent  = css.length.toLocaleString();
   document.getElementById('jsCount').textContent   = js.length.toLocaleString();
-  document.querySelector('[data-tab="html"]').classList.toggle('has-content', html.trim().length > 0);
-  document.querySelector('[data-tab="css"]').classList.toggle('has-content',  css.trim().length > 0);
-  document.querySelector('[data-tab="js"]').classList.toggle('has-content',   js.trim().length > 0);
+  // dot indicators via label data attributes
+  document.querySelector('.label-html').setAttribute('data-filled', html.trim().length > 0 ? '1' : '');
+  document.querySelector('.label-css').setAttribute('data-filled',  css.trim().length  > 0 ? '1' : '');
+  document.querySelector('.label-js').setAttribute('data-filled',   js.trim().length   > 0 ? '1' : '');
 }
 document.getElementById('htmlInput').addEventListener('input', updateCounts);
 document.getElementById('cssInput').addEventListener('input', updateCounts);
 document.getElementById('jsInput').addEventListener('input', updateCounts);
+document.getElementById('runBtn').addEventListener('click', runAnalysis);
 
 // Chips
 document.querySelectorAll('.chip').forEach(chip => {
