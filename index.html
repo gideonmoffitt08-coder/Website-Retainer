@@ -122,6 +122,18 @@
   .fix-label   { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 1px; margin-bottom: 8px; }
   .where-label { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--warn);   letter-spacing: 1px; margin: 14px 0 6px; }
   .where-text  { font-size: 12px; color: #aab4c8; line-height: 1.6; }
+  .line-num-box {
+    display: inline-block;
+    margin-top: 8px;
+    background: rgba(255,179,71,0.1);
+    border: 1px solid rgba(255,179,71,0.3);
+    color: var(--warn);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-weight: 700;
+  }
   .code-block  { background: #090b0e; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 16px; position: relative; margin-bottom: 12px; overflow-x: auto; }
   .code-block pre { font-family: 'Space Mono', monospace; font-size: 11px; line-height: 1.8; color: #c8d8f0; white-space: pre-wrap; word-break: break-all; }
   .copy-btn { position: absolute; top: 10px; right: 10px; background: var(--card); border: 1px solid var(--border); color: var(--muted); font-size: 11px; font-family: 'Space Mono', monospace; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.2s; touch-action: manipulation; }
@@ -316,7 +328,7 @@ async function runAnalysis() {
     loadMsg.textContent = msgs[msgIdx];
   }, 1800);
 
-  var systemPrompt = 'You are an expert web developer and site auditor. Analyze the website code and return ONLY a valid JSON object. No markdown, no backticks, no text outside the JSON.\n\nJSON structure:\n{\n  "score": <0-100>,\n  "summary": "<2-3 sentence overview>",\n  "issues": [\n    {\n      "id": 1,\n      "severity": "critical",\n      "category": "<Mobile|SEO|Performance|Accessibility|Forms|Design|Security>",\n      "title": "<short title>",\n      "description": "<2-4 sentences plain English for a non-coder>",\n      "where": "<where to find it in the code, plain English>",\n      "fix_code": "<actual working code fix>",\n      "fix_explanation": "<1-2 sentences plain English>"\n    }\n  ]\n}\nseverity options: critical, warning, info, good\nReturn 4-12 issues. Score 0-40=critical problems, 41-65=needs work, 66-85=decent, 86-100=excellent.';
+  var systemPrompt = 'You are an expert web developer and site auditor. Analyze the website code and return ONLY a valid JSON object. No markdown, no backticks, no text outside the JSON.\n\nIMPORTANT: The code is submitted with file labels like === index.html === so you know which file each line belongs to. Count line numbers carefully within each file starting from line 1.\n\nJSON structure:\n{\n  "score": <0-100>,\n  "summary": "<2-3 sentence overview>",\n  "issues": [\n    {\n      "id": 1,\n      "severity": "critical",\n      "category": "<Mobile|SEO|Performance|Accessibility|Forms|Design|Security>",\n      "title": "<short title>",\n      "description": "<2-4 sentences plain English for a non-coder>",\n      "where": "<plain English location e.g. In index.html inside the head tag>",\n      "line_number": "<exact line number(s) where the fix goes, e.g. Line 14 in index.html or Lines 45-48 in styles.css>",\n      "fix_code": "<actual working code fix>",\n      "fix_explanation": "<1-2 sentences: state clearly whether to REPLACE existing code or ADD new code, and exactly where>"\n    }\n  ]\n}\nseverity options: critical, warning, info, good\nReturn 4-12 issues. Score 0-40=critical, 41-65=needs work, 66-85=decent, 86-100=excellent.';
 
   var userMsg = 'Audit this website.' + (siteUrl ? ' URL: ' + siteUrl + '.' : '') + ' Focus: ' + focus + '\n\nCODE:\n' + combinedCode;
 
@@ -413,7 +425,12 @@ function renderResults(data) {
   var sorted = issues.slice().sort(function(a,b) { return (order[a.severity]||2)-(order[b.severity]||2); });
 
   sorted.forEach(function(issue, idx) {
-    var where = issue.where ? '<div class="where-label">▸ WHERE TO FIND IT</div><div class="where-text">' + esc(issue.where) + '</div>' : '';
+    var where = '';
+    if (issue.where || issue.line_number) {
+      where = '<div class="where-label">▸ WHERE TO FIND IT</div>';
+      if (issue.where) where += '<div class="where-text">' + esc(issue.where) + '</div>';
+      if (issue.line_number) where += '<div class="line-num-box">📍 ' + esc(issue.line_number) + '</div>';
+    }
     var fix = '';
     if (issue.fix_code) {
       fix = '<div class="fix-label">▸ RECOMMENDED FIX</div>'
