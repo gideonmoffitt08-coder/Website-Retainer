@@ -145,6 +145,24 @@
     margin-bottom: 10px;
   }
   .fix-summary { font-size: 12px; color: var(--muted); margin-top: 10px; font-style: italic; }
+  .steps-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--info);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 8px 0 4px;
+  }
+  .step-row {
+    display: flex;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    align-items: flex-start;
+  }
+  .step-row:last-child { border-bottom: none; }
+  .step-num  { font-family: 'Space Mono', monospace; font-size: 12px; color: var(--info); font-weight: 700; flex-shrink: 0; min-width: 22px; }
+  .step-text { font-size: 13px; color: #c8d8f0; line-height: 1.6; }
   .where-label { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--warn);   letter-spacing: 1px; margin: 14px 0 6px; }
   .where-text  { font-size: 12px; color: #aab4c8; line-height: 1.6; }
   .line-num-box {
@@ -353,7 +371,7 @@ async function runAnalysis() {
     loadMsg.textContent = msgs[msgIdx];
   }, 1800);
 
-  var systemPrompt = 'You are an expert web developer and site auditor. Analyze the website code and return ONLY a valid JSON object. No markdown, no backticks, no text outside the JSON.\n\nIMPORTANT: The code is submitted with file labels like === index.html === so you know which file each line belongs to. Count line numbers carefully within each file starting from line 1.\n\nJSON structure:\n{\n  "score": <0-100>,\n  "summary": "<2-3 sentence overview>",\n  "issues": [\n    {\n      "id": 1,\n      "severity": "critical",\n      "category": "<Mobile|SEO|Performance|Accessibility|Forms|Design|Security>",\n      "title": "<short title>",\n      "description": "<2-4 sentences plain English for a non-coder>",\n      "where": "<plain English location e.g. In index.html inside the head tag>",\n      "line_number": "<exact line number(s) where the fix goes, e.g. Line 14 in index.html or Lines 45-48 in styles.css>",\n      "fix_code": "<actual working code fix>",\n      "action": "ADD" | "REPLACE" | "DELETE",\n      "action_detail": "<Step by step plain English instructions: e.g. Go to line 14 in index.html. Find the opening head tag. ADD the following code directly after it. — or — Find the nav element on line 32. REPLACE the entire nav block with the code below.>",\n      "fix_code": "<ONLY the raw code to copy and paste. No comments, no instructions, just the code.>",\n      "fix_explanation": "<1 sentence summary of what this fix does>"\n    }\n  ]\n}\nseverity options: critical, warning, info, good\nReturn 4-12 issues. Score 0-40=critical, 41-65=needs work, 66-85=decent, 86-100=excellent. fix_code must contain ONLY pure code — zero instructions or comments inside it.';
+  var systemPrompt = 'You are an expert web developer auditing a website for a non-technical business owner. Return ONLY a raw JSON object. Absolutely no markdown, no backticks, no text before or after the JSON.\n\nThe code is labeled with === index.html ===, === styles.css ===, === script.js === so you know which file is which. Count line numbers from line 1 of each file.\n\nJSON format:\n{\n  "score": <number 0-100>,\n  "summary": "<2-3 plain English sentences summarising what you found>",\n  "issues": [\n    {\n      "id": <number>,\n      "severity": <"critical" | "warning" | "info" | "good">,\n      "category": <"Mobile" | "SEO" | "Performance" | "Accessibility" | "Forms" | "Design" | "Security">,\n      "title": "<short issue title>",\n      "description": "<2-3 plain English sentences explaining the problem and why it matters>",\n      "where": "<One plain English sentence saying which file and roughly where. Example: In the index.html file, inside the head tag near the top of the page.>",\n      "line_number": "<Specific line number. Example: Line 12 in index.html — or — Lines 34 to 38 in styles.css>",\n      "action": <"ADD" | "REPLACE" | "DELETE">,\n      "steps": "<Numbered steps written like instructions for a complete beginner. Example: 1. Open your index.html file in GitHub. 2. Click the pencil icon to edit. 3. Find line 12 — it starts with the meta charset tag. 4. Click at the end of that line and press Enter to create a new line. 5. Paste the code below on that new line. 6. Click Commit changes to save.>",\n      "fix_code": "<ONLY raw copy-pasteable code. No comments starting with //. No instructions. No placeholder text. Just the exact code to paste.>",\n      "fix_summary": "<One sentence saying what this fix will improve for the business owner>"\n    }\n  ]\n}\n\nCRITICAL RULES FOR fix_code:\n- fix_code must contain ONLY raw code. Nothing else.\n- Do NOT put any English words, sentences, comments, or // comment lines inside fix_code.\n- Do NOT put instructions like add this or replace this inside fix_code.\n- If you need to explain something, put it in steps instead.\n- fix_code is copy-paste ready code only.\n\nReturn 4 to 12 issues total. Score: 0-40 = critical problems, 41-65 = needs work, 66-85 = decent, 86-100 = excellent.';
 
   var userMsg = 'Audit this website.' + (siteUrl ? ' URL: ' + siteUrl + '.' : '') + ' Focus: ' + focus + '\n\nCODE:\n' + combinedCode;
 
@@ -460,15 +478,32 @@ function renderResults(data) {
     if (issue.fix_code) {
       var action = issue.action || 'UPDATE';
       var actionClass = 'action-' + action;
-      fix = '<div class="fix-label">▸ INSTRUCTIONS</div>'
-        + '<span class="action-badge ' + actionClass + '">⚡ ' + action + '</span>'
-        + (issue.action_detail ? '<div class="action-detail">' + esc(issue.action_detail) + '</div>' : '')
-        + '<div class="fix-label" style="margin-top:8px">▸ CODE TO COPY</div>'
+      var stepsHtml = '';
+      if (issue.steps) {
+        // Convert numbered steps into styled list
+        var stepLines = esc(issue.steps).split(/(?=\d+\.)/);
+        stepsHtml = '<div class="steps-box">';
+        stepLines.forEach(function(line) {
+          line = line.trim();
+          if (!line) return;
+          var match = line.match(/^(\d+\.)(.*)/);
+          if (match) {
+            stepsHtml += '<div class="step-row"><span class="step-num">' + match[1] + '</span><span class="step-text">' + match[2].trim() + '</span></div>';
+          } else {
+            stepsHtml += '<div class="step-row"><span class="step-text">' + line + '</span></div>';
+          }
+        });
+        stepsHtml += '</div>';
+      }
+      fix = '<div class="fix-label">▸ WHAT TO DO</div>'
+        + '<span class="action-badge ' + actionClass + '">⚡ ' + action + ' CODE</span>'
+        + stepsHtml
+        + '<div class="fix-label" style="margin-top:12px">▸ CODE TO COPY &amp; PASTE</div>'
         + '<div class="code-block">'
         + '<button class="copy-btn" onclick="copyCode(this,' + idx + ')">COPY</button>'
         + '<pre id="code-' + idx + '">' + esc(issue.fix_code) + '</pre>'
         + '</div>'
-        + (issue.fix_explanation ? '<div class="fix-summary">✓ ' + esc(issue.fix_explanation) + '</div>' : '');
+        + (issue.fix_summary ? '<div class="fix-summary">✓ ' + esc(issue.fix_summary) + '</div>' : '');
     }
     html += '<div class="issue-card" style="animation-delay:' + (idx*0.06) + 's">'
       + '<div class="issue-header" onclick="toggleCard(this)">'
