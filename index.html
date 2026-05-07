@@ -331,7 +331,7 @@ async function runAnalysis() {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4000,
+        max_tokens: 8000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMsg }]
       })
@@ -351,10 +351,23 @@ async function runAnalysis() {
 
     var parsed;
     try {
+      // Strip markdown fences
       var clean = raw.replace(/```json/g,'').replace(/```/g,'').trim();
-      parsed = JSON.parse(clean);
+      // Try direct parse first
+      try {
+        parsed = JSON.parse(clean);
+      } catch(e1) {
+        // Find the outermost { } block in case AI added extra text
+        var start = clean.indexOf('{');
+        var end   = clean.lastIndexOf('}');
+        if (start !== -1 && end !== -1 && end > start) {
+          parsed = JSON.parse(clean.substring(start, end + 1));
+        } else {
+          throw new Error('No JSON object found in response');
+        }
+      }
     } catch(e) {
-      showError('Could not read AI response. Try again.');
+      showError('Could not read AI response. Raw response started with: ' + raw.substring(0, 120));
       return;
     }
 
